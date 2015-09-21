@@ -1,0 +1,433 @@
+public with sharing class CustomerAgreementPlanController {
+    public String selectedCAPlan{get;set;}
+    public String selectedFilter{get;set;}
+    public String Filter{get;set;}
+
+    DateTime CollectionDate;
+    DateTime NewCollectionDate;
+    DateTime Today=DateTime.now();
+    Boolean Create;
+    public List<CAPlan_Report__c>CAPlanQuery{get;set;}
+
+    //Main Lists
+    public List<ADT_Monitoring_Analysis__c>MAList{get;set;}
+    public List<Bacteria_Monitoring__c>BMList{get;set;}
+    public List<Corrosion_Coupon__c>CCList{get;set;}    
+    public List<Crude_Oil_Analysis__c>COAList{get;set;}
+    public List<Field_Solids_Analysis__c>FSAList{get;set;}
+    public List<Grindout__c>GOList{get;set;}
+    public List<Inventory__c>IVList{get;set;}
+    public List<Iron_Manganese_Analysis__c>IMList{get;set;}
+    public List<PO4_Residual__c>PO4RList{get;set;}
+    public List<Scale_Coupon__c>SCList{get;set;}
+    public List<Stress_Test__c>STList{get;set;}
+    public List<Water_Analysis__c>WAList{get;set;}
+    public List<Water_Quality__c>WQList{get;set;}
+    
+    //Insert Lists
+    List<ADT_Monitoring_Analysis__c>MAInsert=new List<ADT_Monitoring_Analysis__c>{};
+    List<Bacteria_Monitoring__c>BMInsert=new List<Bacteria_Monitoring__c>{};
+    List<Corrosion_Coupon__c>CCInsert=new List<Corrosion_Coupon__c>{};
+    List<Crude_Oil_Analysis__c>COAInsert=new List<Crude_Oil_Analysis__c>{};
+    List<Field_Solids_Analysis__c>FSAInsert=new List<Field_Solids_Analysis__c>{}; 
+    List<Grindout__c>GOInsert=new List<Grindout__c>{};
+    List<Inventory__c>IVInsert= new List<Inventory__c>{};
+    List<Iron_Manganese_Analysis__c>IMInsert= new List<Iron_Manganese_Analysis__c>{};
+    List<PO4_Residual__c>PO4RInsert=new List<PO4_Residual__c>{};                                       
+    List<Scale_Coupon__c>SCInsert=new List<Scale_Coupon__c>{};
+    List<Stress_Test__c>STInsert=new List<Stress_Test__c>{};        
+    List<Water_Analysis__c>WAInsert=new List<Water_Analysis__c>{};
+    List<Water_Quality__c>WQInsert=new List<Water_Quality__c>{};
+    
+    //Master List
+    List<NC_Site__c>SiteList=new List<NC_Site__c>{};
+    List<Site_Location__c>SiteLocationList=new List<Site_Location__c>{};
+    
+    //Variables for aggregrate function. Used to determine MAX Collection Date by Site Location for CA Plan
+    String agrSiteLocation;
+    DateTime agrCollectionDate;
+    set<String> slset =  new set<String>();//Site Location
+    set<DateTime> cdset =  new set<DateTime>();//Collection Date
+    
+    public void Create(){
+        //GET ALL SITES
+        for(NC_Site__c SLoop:[SELECT Id FROM NC_Site__c where NC_Sales_Rep__c=:UserInfo.getUserId()]){
+            NC_Site__c STemp=new NC_Site__c(); 
+            STemp.Id=SLoop.Id;
+            SiteList.add(STemp);  
+        }
+        //GET ALL SITE LOCATIONS
+        if(SiteList.size()>0){
+            for(Site_Location__c SLLoop : [SELECT Id from Site_Location__c WHERE Site__c IN :SiteList]){
+                Site_Location__c SLTemp = new Site_Location__c();
+                SLTemp.Id = SLLoop.Id;
+                SiteLocationList.add(SLTemp);
+            }    
+        }
+        //GET ALL ADT MONITORING ANALYSES 
+        if(selectedCAPlan=='ADT Monitoring Analysis'){
+            List<aggregateResult> agr = [select Site_Location__c, MAX(Collection_Date__c)CD from ADT_Monitoring_Analysis__c WHERE Site_Location__c IN :SiteLocationList GROUP BY Site_Location__c];
+            GetAggregrate(agr);
+            MAList = [select Site_Location__c, CreatedDate, Collection_Date__c, CA_Frequency__c from ADT_Monitoring_Analysis__c WHERE Site_Location__c IN :slset and Collection_Date__c IN :cdset];
+            if(MAList.Size()>0){
+                for(ADT_Monitoring_Analysis__c MALoop : MAList){
+                    ADT_Monitoring_Analysis__c MATemp = new ADT_Monitoring_Analysis__c();
+                    if(MALoop.CA_Frequency__c != null){
+                        MATemp.Site_Location__c = MALoop.Site_Location__c;
+                        FormNewCollectionDate(MALoop.CA_Frequency__c,MALoop.Collection_Date__c,MALoop.CreatedDate);
+                        MATemp.Collection_Date__c=NewCollectionDate;
+                        if(Create==true){MAInsert.add(MATemp);}
+                    }    
+                                        
+                }
+            }             
+        }
+        //GET ALL BACTERIA MONITORING 
+        if(selectedCAPlan=='Bacteria Monitoring'){
+            List<aggregateResult> agr = [select Site_Location__c, MAX(Collection_Date__c)CD from Bacteria_Monitoring__c WHERE Site_Location__c IN :SiteLocationList GROUP BY Site_Location__c];
+            GetAggregrate(agr);
+            BMList = [select Site_Location__c, CreatedDate, Collection_Date__c, CA_Frequency__c from Bacteria_Monitoring__c WHERE Site_Location__c IN :slset and Collection_Date__c IN :cdset];
+            if(BMList.Size()>0){
+                for(Bacteria_Monitoring__c BMLoop : BMList){
+                    if(BMLoop.CA_Frequency__c != null){
+                        Bacteria_Monitoring__c BMTemp = new Bacteria_Monitoring__c();
+                        BMTemp.Site_Location__c = BMLoop.Site_Location__c;
+                        FormNewCollectionDate(BMLoop.CA_Frequency__c,BMLoop.Collection_Date__c,BMLoop.CreatedDate);
+                        BMTemp.Collection_Date__c=NewCollectionDate;
+                        if(Create==true){BMInsert.add(BMTemp);}
+                    }                    
+                }
+            }             
+        }
+        //GET ALL CORROSION COUPON 
+        if(selectedCAPlan=='Corrosion Coupon'){
+            List<aggregateResult> agr = [select Site_Location__c, MAX(Collection_Date__c)CD from Corrosion_Coupon__c WHERE Site_Location__c IN :SiteLocationList GROUP BY Site_Location__c];
+            GetAggregrate(agr);
+            CCList = [select Site_Location__c, CreatedDate, Collection_Date__c, CA_Frequency__c from Corrosion_Coupon__c WHERE Site_Location__c IN :slset and Collection_Date__c IN :cdset];
+            if(CCList.Size()>0){
+                for(Corrosion_Coupon__c CCLoop : CCList){
+                    if(CCLoop.CA_Frequency__c != null){
+                        Corrosion_Coupon__c CCTemp = new Corrosion_Coupon__c();
+                        CCTemp.Site_Location__c = CCLoop.Site_Location__c;
+                        FormNewCollectionDate(CCLoop.CA_Frequency__c,CCLoop.Collection_Date__c,CCLoop.CreatedDate);
+                        CCTemp.Collection_Date__c=NewCollectionDate;
+                        if(Create==true){CCInsert.add(CCTemp);}
+                    }                    
+                }
+            }             
+        }
+        //GET ALL CRUDE OIL ANALYSES 
+        if(selectedCAPlan=='Crude Oil Analysis'){
+            List<aggregateResult> agr = [select Site_Location__c, MAX(Collection_Date__c)CD from Crude_Oil_Analysis__c WHERE Site_Location__c IN :SiteLocationList GROUP BY Site_Location__c];
+            GetAggregrate(agr);
+            COAList = [select Site_Location__c, CreatedDate, Collection_Date__c, CA_Frequency__c from Crude_Oil_Analysis__c WHERE Site_Location__c IN :slset and Collection_Date__c IN :cdset];
+            if(COAList.Size()>0){
+                for(Crude_Oil_Analysis__c COALoop : COAList){
+                    if(COALoop.CA_Frequency__c != null){
+                        Crude_Oil_Analysis__c COATemp = new Crude_Oil_Analysis__c();
+                        COATemp.Site_Location__c = COALoop.Site_Location__c;
+                        FormNewCollectionDate(COALoop.CA_Frequency__c,COALoop.Collection_Date__c,COALoop.CreatedDate);
+                        COATemp.Collection_Date__c=NewCollectionDate;
+                        if(Create==true){COAInsert.add(COATemp);}
+                    }                    
+                }
+            }             
+        }
+        //GET ALL FIELD SOLIDS ANALYSES 
+        if(selectedCAPlan=='Field Solids Analysis'){
+            List<aggregateResult> agr = [select Site_Location__c, MAX(Collection_Date__c)CD from Field_Solids_Analysis__c WHERE Site_Location__c IN :SiteLocationList GROUP BY Site_Location__c];
+            GetAggregrate(agr);
+            FSAList = [select Site_Location__c, CreatedDate, Collection_Date__c, CA_Frequency__c from Field_Solids_Analysis__c WHERE Site_Location__c IN :slset and Collection_Date__c IN :cdset];
+            if(FSAList.Size()>0){
+                for(Field_Solids_Analysis__c FSALoop : FSAList){
+                    if(FSALoop.CA_Frequency__c != null){
+                        Field_Solids_Analysis__c FSATemp = new Field_Solids_Analysis__c();
+                        FSATemp.Site_Location__c = FSALoop.Site_Location__c;
+                        FormNewCollectionDate(FSALoop.CA_Frequency__c,FSALoop.Collection_Date__c,FSALoop.CreatedDate);
+                        FSATemp.Collection_Date__c=NewCollectionDate;
+                        if(Create==true){FSAInsert.add(FSATemp);}
+                    }                    
+                }
+            }             
+        }
+        //GET ALL GRINOUTS 
+        if(selectedCAPlan=='Grindout'){
+            List<aggregateResult> agr = [select Site_Location__c, MAX(Collection_Date__c)CD from Field_Solids_Analysis__c WHERE Site_Location__c IN :SiteLocationList GROUP BY Site_Location__c];
+            GetAggregrate(agr);
+            FSAList = [select Site_Location__c, CreatedDate, Collection_Date__c, CA_Frequency__c from Field_Solids_Analysis__c WHERE Site_Location__c IN :slset and Collection_Date__c IN :cdset];
+            if(FSAList.Size()>0){
+                for(Field_Solids_Analysis__c FSALoop : FSAList){
+                    if(FSALoop.CA_Frequency__c != null){
+                        Field_Solids_Analysis__c FSATemp = new Field_Solids_Analysis__c();
+                        FSATemp.Site_Location__c = FSALoop.Site_Location__c;
+                        FormNewCollectionDate(FSALoop.CA_Frequency__c,FSALoop.Collection_Date__c,FSALoop.CreatedDate);
+                        FSATemp.Collection_Date__c=NewCollectionDate;
+                        if(Create==true){FSAInsert.add(FSATemp);}
+                    }                    
+                }
+            }             
+        }
+        //GET ALL Inventory 
+        if(selectedCAPlan=='Inventory'){
+            List<aggregateResult> agr = [select Site_Location__c, MAX(Collection_Date__c)CD from Inventory__c WHERE Site_Location__c IN :SiteLocationList GROUP BY Site_Location__c];
+            GetAggregrate(agr);
+            IVList = [select Site_Location__c, CreatedDate, Collection_Date__c, CA_Frequency__c from Inventory__c WHERE Site_Location__c IN :slset and Collection_Date__c IN :cdset];
+            if(IVList.Size()>0){
+                for(Inventory__c IVLoop : IVList){
+                    if(IVLoop.CA_Frequency__c != null){
+                        Inventory__c IVTemp = new Inventory__c();
+                        IVTemp.Site_Location__c = IVLoop.Site_Location__c;
+                        FormNewCollectionDate(IVLoop.CA_Frequency__c,IVLoop.Collection_Date__c,IVLoop.CreatedDate);
+                        IVTemp.Collection_Date__c=NewCollectionDate;
+                        if(Create==true){IVInsert.add(IVTemp);}
+                    }                    
+                }
+            }             
+        }
+        //GET ALL IRON MANGANESE 
+        if(selectedCAPlan=='Iron Manganese'){
+            List<aggregateResult> agr = [select Site_Location__c, MAX(Collection_Date__c)CD from Iron_Manganese_Analysis__c WHERE Site_Location__c IN :SiteLocationList GROUP BY Site_Location__c];
+            GetAggregrate(agr);
+            IMList = [select Site_Location__c, CreatedDate, Collection_Date__c, CA_Frequency__c from Iron_Manganese_Analysis__c WHERE Site_Location__c IN :slset and Collection_Date__c IN :cdset];
+            if(IMList.Size()>0){
+                for(Iron_Manganese_Analysis__c IMLoop : IMList){
+                    if(IMLoop.CA_Frequency__c != null){
+                        Iron_Manganese_Analysis__c IMTemp = new Iron_Manganese_Analysis__c();
+                        IMTemp.Site_Location__c = IMLoop.Site_Location__c;
+                        FormNewCollectionDate(IMLoop.CA_Frequency__c,IMLoop.Collection_Date__c,IMLoop.CreatedDate);
+                        IMTemp.Collection_Date__c=NewCollectionDate;
+                        if(Create==true){IMInsert.add(IMTemp);}
+                    }                    
+                }
+            }             
+        }
+        //GET ALL PO4 RESIDUALS 
+        if(selectedCAPlan=='PO4 Residuals'){
+            List<aggregateResult> agr = [select Site_Location__c, MAX(Collection_Date__c)CD from PO4_Residual__c WHERE Site_Location__c IN :SiteLocationList GROUP BY Site_Location__c];
+            GetAggregrate(agr);
+            PO4RList = [select Site_Location__c, CreatedDate, Collection_Date__c, CA_Frequency__c from PO4_Residual__c WHERE Site_Location__c IN :slset and Collection_Date__c IN :cdset];
+            if(PO4RList.Size()>0){
+                for(PO4_Residual__c PO4RLoop : PO4RList){
+                    if(PO4RLoop.CA_Frequency__c != null){
+                        PO4_Residual__c PO4RTemp = new PO4_Residual__c();
+                        PO4RTemp.Site_Location__c = PO4RLoop.Site_Location__c;
+                        FormNewCollectionDate(PO4RLoop.CA_Frequency__c,PO4RLoop.Collection_Date__c,PO4RLoop.CreatedDate);
+                        PO4RTemp.Collection_Date__c=NewCollectionDate;
+                        if(Create==true){PO4RInsert.add(PO4RTemp);}
+                    }                    
+                }
+            }             
+        }
+        //GET SCALE COUPON
+        if(selectedCAPlan=='Scale Coupon'){
+            List<aggregateResult> agr = [select Site_Location__c, MAX(Collection_Date__c)CD from Scale_Coupon__c WHERE Site_Location__c IN :SiteLocationList GROUP BY Site_Location__c];
+            GetAggregrate(agr);
+            SCList = [select Site_Location__c, CreatedDate, Collection_Date__c, CA_Frequency__c from Scale_Coupon__c WHERE Site_Location__c IN :slset and Collection_Date__c IN :cdset];
+            if(SCList.Size()>0){
+                for(Scale_Coupon__c SCLoop : SCList){
+                    if(SCLoop.CA_Frequency__c != null){
+                        Scale_Coupon__c SCTemp = new Scale_Coupon__c();
+                        SCTemp.Site_Location__c = SCLoop.Site_Location__c;
+                        FormNewCollectionDate(SCLoop.CA_Frequency__c,SCLoop.Collection_Date__c,SCLoop.CreatedDate);
+                        SCTemp.Collection_Date__c=NewCollectionDate;
+                        if(Create==true){SCInsert.add(SCTemp);}
+                    }                    
+                }
+            }             
+        }
+        //GET STRESS TEST
+        if(selectedCAPlan=='Scale Coupon'){
+            List<aggregateResult> agr = [select Site_Location__c, MAX(Collection_Date__c)CD from Stress_Test__c WHERE Site_Location__c IN :SiteLocationList GROUP BY Site_Location__c];
+            GetAggregrate(agr);
+            STList = [select Site_Location__c, CreatedDate, Collection_Date__c, CA_Frequency__c from Stress_Test__c WHERE Site_Location__c IN :slset and Collection_Date__c IN :cdset];
+            if(STList.Size()>0){
+                for(Stress_Test__c STLoop : STList){
+                    if(STLoop.CA_Frequency__c != null){
+                        Stress_Test__c STTemp = new Stress_Test__c();
+                        STTemp.Site_Location__c = STLoop.Site_Location__c;
+                        FormNewCollectionDate(STLoop.CA_Frequency__c,STLoop.Collection_Date__c,STLoop.CreatedDate);
+                        STTemp.Collection_Date__c=NewCollectionDate;
+                        if(Create==true){STInsert.add(STTemp);}
+                    }                    
+                }
+            }             
+        }
+        //GET WATER ANALYSES
+        if(selectedCAPlan=='Water Analysis'){
+            List<aggregateResult> agr = [select Site_Location__c, MAX(Collection_Date__c)CD from Water_Analysis__c WHERE Site_Location__c IN :SiteLocationList GROUP BY Site_Location__c];
+            GetAggregrate(agr);
+            WAList = [select Site_Location__c, CreatedDate, Collection_Date__c, CA_Frequency__c from Water_Analysis__c WHERE Site_Location__c IN :slset and Collection_Date__c IN :cdset];
+            if(WAList.Size()>0){
+                for(Water_Analysis__c WALoop : WAList){
+                    if(WALoop.CA_Frequency__c != null){
+                        Water_Analysis__c WATemp = new Water_Analysis__c();
+                        WATemp.Site_Location__c = WALoop.Site_Location__c;
+                        FormNewCollectionDate(WALoop.CA_Frequency__c,WALoop.Collection_Date__c,WALoop.CreatedDate);
+                        WATemp.Collection_Date__c=NewCollectionDate;
+                        if(Create==true){WAInsert.add(WATemp);}
+                    }                    
+                }
+            }             
+        }
+        //GET WATER QAULITY
+        if(selectedCAPlan=='Water Quality'){
+            List<aggregateResult> agr = [select Site_Location__c, MAX(Collection_Date__c)CD from Water_Quality__c WHERE Site_Location__c IN :SiteLocationList GROUP BY Site_Location__c];
+            GetAggregrate(agr);
+            WQList = [select Site_Location__c, CreatedDate, Collection_Date__c, CA_Frequency__c from Water_Quality__c WHERE Site_Location__c IN :slset and Collection_Date__c IN :cdset];
+            if(WQList.Size()>0){
+                for(Water_Quality__c WQLoop : WQList){
+                    if(WQLoop.CA_Frequency__c != null){
+                        Water_Quality__c WQTemp = new Water_Quality__c();
+                        WQTemp.Site_Location__c = WQLoop.Site_Location__c;
+                        FormNewCollectionDate(WQLoop.CA_Frequency__c,WQLoop.Collection_Date__c,WQLoop.CreatedDate);
+                        WQTemp.Collection_Date__c=NewCollectionDate;
+                        if(Create==true){WQInsert.add(WQTemp);}
+                    }                    
+                }
+            }             
+        }
+        //Data Inserts
+        if(MAInsert.size()>0){Insert MAInsert;MAInsert.clear();MAList.clear();}    
+        if(BMInsert.size()>0){Insert BMInsert;BMInsert.clear();BMList.clear();}
+        if(CCInsert.size()>0){Insert CCInsert;CCInsert.clear();CCList.clear();}
+        if(COAInsert.size()>0){Insert COAInsert;COAInsert.clear();COAList.clear();}    
+        if(FSAInsert.size()>0){Insert FSAInsert;FSAInsert.clear();FSAList.clear();}    
+        if(GOInsert.size()>0){Insert GOInsert;GOInsert.clear();GOList.clear();} 
+        if(IVInsert.size()>0){Insert IVInsert;IVInsert.clear();IVList.clear();}   
+        if(IMInsert.size()>0){Insert IMInsert;IMInsert.clear();IMList.clear();}    
+        if(PO4RInsert.size()>0){Insert PO4RInsert;PO4RInsert.clear();PO4RList.clear();}    
+        if(SCInsert.size()>0){Insert SCInsert;SCInsert.clear();SCList.clear();}    
+        if(STInsert.size()>0){Insert STInsert;STInsert.clear();STList.clear();}    
+        if(WAInsert.size()>0){Insert WAInsert;WAInsert.clear();WAList.clear();}    
+        if(WQInsert.size()>0){Insert WQInsert;WQInsert.clear();WQList.clear();}
+        if(!test.isRunningTest()){
+            Query(); 
+        }    
+    }//public void Create
+    public void GetAggregrate(List<aggregateResult> agr){
+        for(aggregateResult agrLoop : agr){
+             agrSiteLocation = string.valueOf(agrLoop.get('Site_Location__c'));
+             agrCollectionDate = DateTime.valueof(agrLoop.get('CD'));
+             slset.add(agrSiteLocation);
+             cdset.add(agrCollectionDate);
+        }
+    }
+    public void FormNewCollectionDate(String Frequency, DateTime CollectionDate, DateTime CreatedDate){
+        Integer ActualDays;
+        Integer RangeDays;
+        DateTime RangeDate;
+        if(CollectionDate==null){
+            CollectionDate = CreatedDate;
+        }
+        if(Frequency=='Weekly'){
+            NewCollectionDate=CollectionDate + 7;
+            RangeDate=Today + 7;
+        }else if(Frequency=='Monthly'){
+            NewCollectionDate=CollectionDate + 30;
+            RangeDate=Today + 30;
+        }else if(Frequency=='Bi-Monthly'){
+            NewCollectionDate=CollectionDate + 60;
+            RangeDate=Today + 60;
+        }else if(Frequency=='Quarterly'){
+            NewCollectionDate=CollectionDate + 90;
+            RangeDate=Today + 90;
+        }else if(Frequency=='Yearly'){
+            NewCollectionDate=CollectionDate + 365;
+            RangeDate=Today + 365;
+        }
+        RangeDays=Integer.valueOf((RangeDate.getTime() - Today.getTime())/(1000*60*60*24));
+        ActualDays=Integer.valueOf((CollectionDate.getTime() - Today.getTime())/(1000*60*60*24));
+        ActualDays=ActualDays+1;
+        system.debug('Today :'+Today);
+        system.debug('Collection Date :'+CollectionDate);
+        system.debug('RangeDate :'+RangeDate);
+        system.debug('RangeDays :'+RangeDays);
+        system.debug('ActualDays :'+ActualDays);
+        if(ActualDays < RangeDays){
+            Create=true;
+            system.debug('Create Test : True');
+        }else{
+            Create=false;
+            system.debug('Create Test : False');
+        }     
+    }//public void FormNewCollectionDate
+    public PageReference Navigate(){
+        system.debug('selectedCAPlan :'+selectedCAPlan);
+        if(selectedCAPLan=='ADT Monitoring Analysis'){PageReference MA=new PageReference('/a0q');MA.setRedirect(true);return MA;}
+        if(selectedCAPLan=='Bacteria Monitoring'){PageReference BM=new PageReference('/a0G');BM.setRedirect(true);return BM;}
+        if(selectedCAPLan=='Corrosion Coupon'){PageReference CC=new PageReference('/a0F');CC.setRedirect(true);return CC;}
+        if(selectedCAPLan=='Crude Oil Analysis'){PageReference COA=new PageReference('/a0V');COA.setRedirect(true);return COA;}
+        if(selectedCAPLan=='Field Solids Analysis'){PageReference FSA=new PageReference('/a0u');FSA.setRedirect(true);return FSA;}
+        if(selectedCAPLan=='Grindout'){PageReference GO=new PageReference('/a0g');GO.setRedirect(true);return GO;}
+        if(selectedCAPLan=='Inventory'){PageReference IV=new PageReference('/a0N');IV.setRedirect(true);return IV;}
+        if(selectedCAPLan=='Iron Manganese'){PageReference IM=new PageReference('/a0T');IM.setRedirect(true);return IM;}
+        if(selectedCAPLan=='PO4 Residual'){PageReference PO4R=new PageReference('/a0H');PO4R.setRedirect(true);return PO4R;}
+        if(selectedCAPLan=='Scale Coupon'){PageReference SC=new PageReference('/a0m');SC.setRedirect(true);return SC;}
+        if(selectedCAPLan=='Stress Test'){PageReference ST=new PageReference('/a0I');ST.setRedirect(true);return ST;}
+        if(selectedCAPLan=='Water Analysis'){PageReference WA=new PageReference('/a09');WA.setRedirect(true);return WA;}
+        if(selectedCAPLan=='Water Quality'){PageReference WQ=new PageReference('/a0K');WQ.setRedirect(true);return WQ;}
+        return null;    
+    }
+    //Get Filter values to add to drop down for Sub-Area
+    public set<String> FilterValues{
+        get{
+            if(FilterValues==null) {
+                FilterValues=new Set<String>();
+                List<CAPlan_Report__c> FilterRecords=new list<CAPlan_Report__c>(); 
+                FilterRecords=[SELECT Filter__c FROM CAPlan_Report__c order by Filter__c ];
+                for(CAPlan_Report__c f:FilterRecords){
+                    FilterValues.add(f.Filter__c );
+                }
+            }
+            return FilterValues;          
+        }set;
+    }
+    //Get Filter values to add to drop down for Sub-Area
+    public set<String> TestTypeValues{
+        get{
+            if(TestTypeValues==null) {
+                TestTypeValues=new Set<String>();
+                List<CAPlan_Report__c> TestTypeRecords=new list<CAPlan_Report__c>(); 
+                TestTypeRecords=[SELECT Chemical_Program_Name__c FROM CAPlan_Report__c order by Chemical_Program_Name__c asc];
+                for(CAPlan_Report__c f:TestTypeRecords){
+                    TestTypeValues.add(f.Chemical_Program_Name__c );
+                }
+            }
+            return TestTypeValues;          
+        }set;
+    }
+    public void Query(){
+        system.debug('Filter :'+Filter);
+        system.debug('selectedCAPlan :'+selectedCAPlan);
+        Boolean addFiltertoQuery;
+        Boolean addCAPlantoQuery;
+            
+        if(Filter==null){addFiltertoQuery=false;}
+        else if(Filter==''){addFiltertoQuery=false;}
+        else{addFiltertoQuery=true;}
+          
+        if(selectedCAPlan=='NONE'){addCAPlantoQuery=false;}
+        else if(selectedCAPlan==null){addCAPlantoQuery=false;}
+        else if(selectedCAPlan==''){addCAPlantoQuery=false;}
+        else{addCAPlantoQuery=true;}
+        
+        if(test.isRunningTest()){
+            system.debug('TEST selectedCAPlan :'+selectedCAPlan);
+            String soql='SELECT Name, Chemical_Program_Name__c, Filter__c,Report_Title__c, Report__c, Report_Link__c from CAPlan_Report__c WHERE Chemical_Program_Name__c=:selectedCAPlan';
+            CAPlanQuery=Database.query(soql);
+        }
+        String soql='SELECT Name, Chemical_Program_Name__c, Filter__c,Report_Title__c, Report__c, Report_Link__c from CAPlan_Report__c ';
+        if(addFiltertoQuery==true && addCAPlantoQuery==true){
+            soql+='WHERE Filter__c=:Filter AND Chemical_Program_Name__c=:selectedCAPlan';
+        }
+        if(addFiltertoQuery==false && addCAPlantoQuery==true){
+            soql+='WHERE Chemical_Program_Name__c=:selectedCAPlan';
+         }
+         if(addFiltertoQuery==true && addCAPlantoQuery==false){
+            soql+='WHERE Filter__c=:Filter';
+         }
+         system.debug('soql :'+soql);
+         CAPlanQuery=Database.query(soql);
+         soql=null;
+    }
+}
